@@ -3,6 +3,9 @@
 in layout(location = 0) vec3 normal;
 in layout(location = 1) vec2 textureCoordinates;
 
+uniform layout(location = 3) mat4 model;
+uniform layout(location = 4) mat4 VP;
+
 out vec4 color;
 
 float rand(vec2 co) { return fract(sin(dot(co.xy, vec2(12.9898,78.233))) * 43758.5453); }

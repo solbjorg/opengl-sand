@@ -8,7 +8,6 @@
 #include <iostream>
 #include <SFML/Audio.hpp>
 #include <SFML/System/Time.hpp>
-#include <utilities/shapes.h>
 #include <utilities/glutils.h>
 #include <utilities/shader.hpp>
 #include <glm/gtc/type_ptr.hpp>
@@ -42,13 +41,8 @@ void runProgram(GLFWwindow* window, CommandLineOptions options)
 	    // Clear colour and depth buffers
 	    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-
         updateFrame(window);
         renderFrame(window);
-
-
-
-
 
         // Handle other events
         glfwPollEvents();
