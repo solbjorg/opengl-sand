@@ -15,14 +15,11 @@ public:
 	std::vector<glm::vec2> textureCoordinates;
 	std::vector<unsigned int> indices;
 
-	Mesh(std::string vname) : name(vname) {
+	Mesh(std::string vname = "<missing>") : name(vname) {
 		// Trading memory usage for speed
 		vertices.reserve(200000);
 		normals.reserve(200000);
 		indices.reserve(200000);
-	}
-	Mesh() {
-		Mesh("<missing>");
 	}
 
 	bool hasNormals;

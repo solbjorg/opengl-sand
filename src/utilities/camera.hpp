@@ -8,7 +8,8 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
 #include <GLFW/glfw3.h>
-
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/gtx/string_cast.hpp>
 
 namespace Gloom
 {
@@ -63,7 +64,6 @@ namespace Gloom
             else
             {
                 isMousePressed = false;
-                resetMouse = true;
             }
         }
 
@@ -71,18 +71,6 @@ namespace Gloom
         /* Handle cursor position from a callback mechanism */
         void handleCursorPosInput(double xpos, double ypos)
         {
-            // Do nothing if the left mouse button is not pressed
-            if (isMousePressed == false)
-                return;
-
-            // There should be no movement when the mouse button is released
-            if (resetMouse)
-            {
-                lastXPos = xpos;
-                lastYPos = ypos;
-                resetMouse = false;
-            }
-
             // Keep track of pitch and yaw for the current frame
             fYaw   = xpos - lastXPos;
             fPitch = ypos - lastYPos;
@@ -128,6 +116,7 @@ namespace Gloom
 
             // Update camera position using the appropriate velocity
             cPosition += fMovement * velocity;
+            std::cout << cMovementSpeed << std::endl;
 
             // Update the view matrix based on the new information
             updateViewMatrix();

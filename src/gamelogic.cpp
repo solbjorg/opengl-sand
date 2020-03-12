@@ -41,7 +41,7 @@ sf::SoundBuffer* buffer;
 Gloom::Shader* shader;
 sf::Sound* sound;
 
-Gloom::Camera camera;
+Gloom::Camera camera(glm::vec3(0.0f,10.0f,0.0f), 10.0f);
 
 glm::mat4 VP;
 
@@ -80,7 +80,7 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     shader->activate();
 
     // Create meshes
-    Mesh terrain = loadTerrainMesh("../res/models/lunarsurface.obj");
+    Mesh terrain = loadTerrainMesh("../res/models/sanddunes.obj");
     unsigned int terrainVAO = generateBuffer(terrain);
 
     // Construct scene
@@ -121,13 +121,6 @@ void updateFrame(GLFWwindow* window) {
     
     if(!hasStarted) {
         if (mouseLeftPressed) {
-            if (options.enableMusic) {
-                sound = new sf::Sound();
-                sound->setBuffer(*buffer);
-                sf::Time startTime = sf::seconds(debug_startTime);
-                sound->setPlayingOffset(startTime);
-                sound->play();
-            }
             totalElapsedTime = debug_startTime;
             gameElapsedTime = debug_startTime;
             hasStarted = true;
@@ -181,7 +174,6 @@ void updateFrame(GLFWwindow* window) {
 
     glm::mat4 projection = glm::perspective(glm::radians(80.0f), float(windowWidth) / float(windowHeight), 0.1f, 350.f);
 
-    // Some math to make the camera move in a nice way
     glm::mat4 cameraTransform = camera.getViewMatrix();
 
     VP = projection * cameraTransform;
@@ -236,24 +228,22 @@ void renderFrame(GLFWwindow* window) {
     int windowWidth, windowHeight;
     glfwGetWindowSize(window, &windowWidth, &windowHeight);
     glViewport(0, 0, windowWidth, windowHeight);
-
+    
     GLfloat currentFrame = glfwGetTime();
     deltaTime = currentFrame - lastFrame;
     lastFrame = currentFrame;
-
-    camera.updateCamera(deltaTime);
+    
     renderNode(rootNode);
+    camera.updateCamera(getTimeDeltaSeconds());
 }
 void keyboardCallback(GLFWwindow* window, int key, int scancode,
-                      int action, int mods)
-{
-  camera.handleKeyboardInputs(key, action);
+                      int action, int mods) {
+    camera.handleKeyboardInputs(key, action);
 }
 
 void mouseButtonCallback(GLFWwindow* window, int button, int action,
-                         int mods)
-{
-  camera.handleMouseButtonInputs(button, action);
+                         int mods) {
+    camera.handleMouseButtonInputs(button, action);
 }
 
 void mouseCallback(GLFWwindow* window, double x, double y) {
