@@ -20,12 +20,13 @@
 #include "utilities/imageLoader.hpp"
 #include "utilities/camera.hpp"
 #include "OBJLoader.hpp"
+#include "utilities/texture.hpp"
 
 enum KeyFrameAction {
     BOTTOM, TOP
 };
 
-#include <timestamps.h>
+#include "timestamps.h"
 
 unsigned int currentKeyFrame = 0;
 unsigned int previousKeyFrame = 0;
@@ -41,7 +42,7 @@ sf::SoundBuffer* buffer;
 Gloom::Shader* shader;
 sf::Sound* sound;
 
-Gloom::Camera camera(glm::vec3(0.0f,10.0f,0.0f), 10.0f);
+Gloom::Camera camera(glm::vec3(0.0f,1.0f,0.0f), 10.0f);
 
 glm::mat4 VP;
 
@@ -75,6 +76,7 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     glfwSetKeyCallback(window, keyboardCallback);
     glfwSetMouseButtonCallback(window, mouseButtonCallback);
     glfwSetCursorPosCallback(window, mouseCallback);
+
     shader = new Gloom::Shader();
     shader->makeBasicShader("../res/shaders/simple.vert", "../res/shaders/simple.frag");
     shader->activate();
@@ -82,6 +84,8 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     // Create meshes
     Mesh terrain = loadTerrainMesh("../res/models/sanddunes.obj");
     unsigned int terrainVAO = generateBuffer(terrain);
+    PNGImage sand_texture = loadPNGFile("../res/textures/sand.png");
+    unsigned int sand_texture_id = getTexture(sand_texture, true);
 
     // Construct scene
     rootNode = createSceneNode();
@@ -91,6 +95,7 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
 
     terrainNode->vertexArrayObjectID = terrainVAO;
     terrainNode->VAOIndexCount = terrain.indices.size(); 
+    terrainNode->textureID = sand_texture_id;
 
     getTimeDeltaSeconds();
 
@@ -101,8 +106,6 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
 
 void updateFrame(GLFWwindow* window) {
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-
-    double timeDelta = getTimeDeltaSeconds();
 
     if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_1)) {
         mouseLeftPressed = true;
@@ -117,59 +120,6 @@ void updateFrame(GLFWwindow* window) {
     } else {
         mouseRightReleased = mouseRightPressed;
         mouseRightPressed = false;
-    }
-    
-    if(!hasStarted) {
-        if (mouseLeftPressed) {
-            totalElapsedTime = debug_startTime;
-            gameElapsedTime = debug_startTime;
-            hasStarted = true;
-        }
-    } else {
-        totalElapsedTime += timeDelta;
-        if(hasLost) {
-            if (mouseLeftReleased) {
-                hasLost = false;
-                hasStarted = false;
-                currentKeyFrame = 0;
-                previousKeyFrame = 0;
-            }
-        } else if (isPaused) {
-            if (mouseRightReleased) {
-                isPaused = false;
-                if (options.enableMusic) {
-                    sound->play();
-                }
-            }
-        } else {
-            gameElapsedTime += timeDelta;
-            if (mouseRightReleased) {
-                isPaused = true;
-                if (options.enableMusic) {
-                    sound->pause();
-                }
-            }
-            // Get the timing for the beat of the song
-            for (unsigned int i = currentKeyFrame; i < keyFrameTimeStamps.size(); i++) {
-                if (gameElapsedTime < keyFrameTimeStamps.at(i)) {
-                    continue;
-                }
-                currentKeyFrame = i;
-            }
-
-            jumpedToNextFrame = currentKeyFrame != previousKeyFrame;
-            previousKeyFrame = currentKeyFrame;
-
-            double frameStart = keyFrameTimeStamps.at(currentKeyFrame);
-            double frameEnd = keyFrameTimeStamps.at(currentKeyFrame + 1); // Assumes last keyframe at infinity
-
-            double elapsedTimeInFrame = gameElapsedTime - frameStart;
-            double frameDuration = frameEnd - frameStart;
-            double fractionFrameComplete = elapsedTimeInFrame / frameDuration;
-
-            KeyFrameAction currentOrigin = keyFrameDirections.at(currentKeyFrame);
-            KeyFrameAction currentDestination = keyFrameDirections.at(currentKeyFrame + 1);
-        }
     }
 
     glm::mat4 projection = glm::perspective(glm::radians(80.0f), float(windowWidth) / float(windowHeight), 0.1f, 350.f);
@@ -210,6 +160,8 @@ void renderNode(SceneNode* node) {
 
     switch(node->nodeType) {
         case GEOMETRY:
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, node->textureID);
             if(node->vertexArrayObjectID != -1) {
                 glBindVertexArray(node->vertexArrayObjectID);
                 glDrawElements(GL_TRIANGLES, node->VAOIndexCount, GL_UNSIGNED_INT, nullptr);

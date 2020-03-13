@@ -3,6 +3,7 @@
 #pragma once
 
 // System headers
+#include <iostream>
 #include <glad/glad.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -116,7 +117,7 @@ namespace Gloom
 
             // Update camera position using the appropriate velocity
             cPosition += fMovement * velocity;
-            std::cout << cMovementSpeed << std::endl;
+            std::cout << glm::to_string(fMovement * velocity) << std::endl;
 
             // Update the view matrix based on the new information
             updateViewMatrix();
@@ -169,7 +170,6 @@ namespace Gloom
         glm::vec3 cPosition;
 
         // Variables used for bookkeeping
-        GLboolean resetMouse     = true;
         GLboolean isMousePressed = false;
         GLboolean keysInUse[512];
 

@@ -23,11 +23,11 @@ struct SceneNode {
 		rotation = glm::vec3(0, 0, 0);
 		scale = glm::vec3(1, 1, 1);
 
-        referencePoint = glm::vec3(0, 0, 0);
-        vertexArrayObjectID = -1;
-        VAOIndexCount = 0;
-
-        nodeType = GEOMETRY;
+		referencePoint = glm::vec3(0, 0, 0);
+		vertexArrayObjectID = -1;
+		VAOIndexCount = 0;
+		
+		nodeType = GEOMETRY;
 
 	}
 
@@ -49,6 +49,7 @@ struct SceneNode {
 	// The ID of the VAO containing the "appearance" of this SceneNode.
 	int vertexArrayObjectID;
 	unsigned int VAOIndexCount;
+	unsigned int textureID;
 
 	// Node type is used to determine how to handle the contents of a node
 	SceneNodeType nodeType;

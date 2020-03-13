@@ -186,18 +186,9 @@ std::vector<Mesh> loadWavefront(std::string const srcFile, bool quiet)
 	return meshes;
 }
 
-void colourVertices(Mesh &Mesh, glm::vec4 colour) {
-	Mesh.colours = std::vector<glm::vec4>();
-	Mesh.colours.resize(Mesh.vertices.size());
-	for (unsigned int i = 0; i < Mesh.vertices.size(); i++) {
-		Mesh.colours[i] = colour;
-	}
-}
-
 Mesh loadTerrainMesh(std::string const srcFile) {
 	std::vector<Mesh> fileContents = loadWavefront(srcFile, true);
 	Mesh terrainMesh = Mesh(fileContents.at(0));
-	colourVertices(terrainMesh, glm::vec4(1, 1, 1, 1));
 
 	return terrainMesh;
 }
