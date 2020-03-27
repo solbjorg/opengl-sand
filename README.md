@@ -6,6 +6,7 @@ endeavour to create sand similar to the game Journey in OpenGL, inspired by
 
 # Credit
 I was entirely focused on the graphical effect. Models and textures were lifted
-from Atwood Deng's similar Unity project, found [here](https://github.com/AtwoodDeng/JourneySand).
-
-Current sand texture from [here](https://www.deviantart.com/marlborolt/art/Sand-Ripples-439027940).
+from Atwood Deng's similar Unity project, found
+[here](https://github.com/AtwoodDeng/JourneySand), used according to the
+[CC-BY-SA-4.0 license](https://creativecommons.org/licenses/by-sa/4.0/),
+share-alike being satisfied through [my use of the GPLv3 license](https://creativecommons.org/2015/10/08/cc-by-sa-4-0-now-one-way-compatible-with-gplv3/).
