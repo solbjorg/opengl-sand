@@ -1,189 +1,196 @@
-#ifndef CAMERA_HPP
-#define CAMERA_HPP
-#pragma once
+/*
+ * combination of Gloom's camera and the learnopengl.com camera: https://learnopengl.com/Getting-started/Camera
+ */
+#ifndef CAMERA_H
+#define CAMERA_H
 
-// System headers
-#include <iostream>
 #include <glad/glad.h>
+#include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/quaternion.hpp>
-#include <GLFW/glfw3.h>
-#define GLM_ENABLE_EXPERIMENTAL
-#include <glm/gtx/string_cast.hpp>
 
-namespace Gloom
+#include <vector>
+
+// Defines several possible options for camera movement. Used as abstraction to stay away from window-system specific input methods
+enum Camera_Movement {
+    FORWARD,
+    BACKWARD,
+    LEFT,
+    RIGHT
+};
+
+// Default camera values
+const float YAW         = -90.0f;
+const float PITCH       =  0.0f;
+const float SPEED       =  2.5f;
+const float SENSITIVITY =  0.1f;
+const float ZOOM        =  45.0f;
+
+
+// An abstract camera class that processes input and calculates the corresponding Euler Angles, Vectors and Matrices for use in OpenGL
+class Camera
 {
-    class Camera
+public:
+    // Camera Attributes
+    glm::vec3 Position;
+    glm::vec3 Front;
+    glm::vec3 Up;
+    glm::vec3 Right;
+    glm::vec3 WorldUp;
+    // Euler Angles
+    float Yaw;
+    float Pitch;
+    // Camera options
+    float MovementSpeed;
+    float MouseSensitivity;
+    float Zoom;
+
+    // Constructor with vectors
+    Camera(glm::vec3 position = glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f), float yaw = YAW, float pitch = PITCH) : Front(glm::vec3(0.0f, 0.0f, -1.0f)), MovementSpeed(SPEED), MouseSensitivity(SENSITIVITY), Zoom(ZOOM)
     {
-    public:
-        Camera(glm::vec3 position         = glm::vec3(0.0f, 0.0f, 2.0f),
-               GLfloat   movementSpeed    = 5.0f,
-               GLfloat   mouseSensitivity = 0.005f)
+        Position = position;
+        WorldUp = up;
+        Yaw = yaw;
+        Pitch = pitch;
+        updateCameraVectors();
+    }
+    // Constructor with scalar values
+    Camera(float posX, float posY, float posZ, float upX, float upY, float upZ, float yaw, float pitch) : Front(glm::vec3(0.0f, 0.0f, -1.0f)), MovementSpeed(SPEED), MouseSensitivity(SENSITIVITY), Zoom(ZOOM)
+    {
+        Position = glm::vec3(posX, posY, posZ);
+        WorldUp = glm::vec3(upX, upY, upZ);
+        Yaw = yaw;
+        Pitch = pitch;
+        updateCameraVectors();
+    }
+
+    // Returns the view matrix calculated using Euler Angles and the LookAt Matrix
+    glm::mat4 GetViewMatrix()
+    {
+        return glm::lookAt(Position, Position + Front, Up);
+    }
+
+    // Processes input received from any keyboard-like input system. Accepts input parameter in the form of camera defined ENUM (to abstract it from windowing systems)
+    void ProcessKeyboard(Camera_Movement direction, float deltaTime)
+    {
+        float velocity = MovementSpeed * deltaTime;
+        if (direction == FORWARD)
+            Position += Front * velocity;
+        if (direction == BACKWARD)
+            Position -= Front * velocity;
+        if (direction == LEFT)
+            Position -= Right * velocity;
+        if (direction == RIGHT)
+            Position += Right * velocity;
+    }
+    /* Handle keyboard inputs from a callback mechanism */
+    void handleKeyboardInputs(int key, int action)
+    {
+        // Keep track of pressed/released buttons
+        if (key >= 0 && key < 512)
         {
-            cPosition         = position;
-            cMovementSpeed    = movementSpeed;
-            cMouseSensitivity = mouseSensitivity;
-
-            // Set up the initial view matrix
-            updateViewMatrix();
-        }
-
-        // Public member functions
-
-        /* Getter for the view matrix */
-        glm::mat4 getViewMatrix() { return matView; }
-
-
-        /* Handle keyboard inputs from a callback mechanism */
-        void handleKeyboardInputs(int key, int action)
-        {
-            // Keep track of pressed/released buttons
-            if (key >= 0 && key < 512)
+            if (action == GLFW_PRESS)
             {
-                if (action == GLFW_PRESS)
-                {
-                    keysInUse[key] = true;
-                }
-                else if (action == GLFW_RELEASE)
-                {
-                    keysInUse[key] = false;
-                }
+                keysInUse[key] = true;
+            }
+            else if (action == GLFW_RELEASE)
+            {
+                keysInUse[key] = false;
             }
         }
 
+    }
 
-        /* Handle mouse button inputs from a callback mechanism */
-        void handleMouseButtonInputs(int button, int action)
+    void updateCamera(float deltaTime) {
+        // Alter position in the appropriate direction
+        glm::vec3 fMovement(0.0f, 0.0f, 0.0f);
+        bool sprint = false;
+
+        if (keysInUse[GLFW_KEY_W])  // forward
+            fMovement += Front;
+
+        if (keysInUse[GLFW_KEY_S])  // backward
+            fMovement -= Front;
+
+        if (keysInUse[GLFW_KEY_A])  // left
+            fMovement -= Right;
+
+        if (keysInUse[GLFW_KEY_D])  // right
+            fMovement += Right;
+
+        if (keysInUse[GLFW_KEY_LEFT_SHIFT])
+            sprint = true;
+
+        // Trick to balance PC speed with movement
+        GLfloat velocity = (sprint ? 2.0 : 1.0) * MovementSpeed * deltaTime;
+
+        // Update camera position using the appropriate velocity
+        Position += fMovement * velocity;
+    }
+
+    // Processes input received from a mouse input system. Expects the offset value in both the x and y direction.
+    void ProcessMouseMovement(float xpos, float ypos, GLboolean constrainPitch = true)
+    {
+        if (firstMouse)
         {
-            // Ensure that the camera only rotates when the left mouse button is
-            // pressed
-            if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS)
-            {
-                isMousePressed = true;
-            }
-            else
-            {
-                isMousePressed = false;
-            }
+            lastX = xpos;
+            lastY = ypos;
+            firstMouse = false;
         }
 
+        float xoffset = xpos - lastX;
+        float yoffset = lastY - ypos; // reversed since y-coordinates go from bottom to top
 
-        /* Handle cursor position from a callback mechanism */
-        void handleCursorPosInput(double xpos, double ypos)
+        lastX = xpos;
+        lastY = ypos;
+
+        xoffset *= MouseSensitivity;
+        yoffset *= MouseSensitivity;
+
+        Yaw   += xoffset;
+        Pitch += yoffset;
+
+        // Make sure that when pitch is out of bounds, screen doesn't get flipped
+        if (constrainPitch)
         {
-            // Keep track of pitch and yaw for the current frame
-            fYaw   = xpos - lastXPos;
-            fPitch = ypos - lastYPos;
-
-            // Update last known cursor position
-            lastXPos = xpos;
-            lastYPos = ypos;
+            if (Pitch > 89.0f)
+                Pitch = 89.0f;
+            if (Pitch < -89.0f)
+                Pitch = -89.0f;
         }
 
+        // Update Front, Right and Up Vectors using the updated Euler angles
+        updateCameraVectors();
+    }
 
-        /* Update the camera position and view matrix
-           `deltaTime` is the time between the current and last frame */
-        void updateCamera(GLfloat deltaTime)
-        {
-            // Extract movement information from the view matrix
-            glm::vec3 dirX(matView[0][0], matView[1][0], matView[2][0]);
-            glm::vec3 dirY(matView[0][1], matView[1][1], matView[2][1]);
-            glm::vec3 dirZ(matView[0][2], matView[1][2], matView[2][2]);
+    // Processes input received from a mouse scroll-wheel event. Only requires input on the vertical wheel-axis
+    void ProcessMouseScroll(float yoffset)
+    {
+        if (Zoom >= 1.0f && Zoom <= 45.0f)
+            Zoom -= yoffset;
+        if (Zoom <= 1.0f)
+            Zoom = 1.0f;
+        if (Zoom >= 45.0f)
+            Zoom = 45.0f;
+    }
 
-            // Alter position in the appropriate direction
-            glm::vec3 fMovement(0.0f, 0.0f, 0.0f);
-
-            if (keysInUse[GLFW_KEY_W])  // forward
-                fMovement -= dirZ;
-
-            if (keysInUse[GLFW_KEY_S])  // backward
-                fMovement += dirZ;
-
-            if (keysInUse[GLFW_KEY_A])  // left
-                fMovement -= dirX;
-
-            if (keysInUse[GLFW_KEY_D])  // right
-                fMovement += dirX;
-
-            if (keysInUse[GLFW_KEY_E])  // vertical up
-                fMovement += dirY;
-
-            if (keysInUse[GLFW_KEY_Q])  // vertical down
-                fMovement -= dirY;
-
-            // Trick to balance PC speed with movement
-            GLfloat velocity = cMovementSpeed * deltaTime;
-
-            // Update camera position using the appropriate velocity
-            cPosition += fMovement * velocity;
-            std::cout << glm::to_string(fMovement * velocity) << std::endl;
-
-            // Update the view matrix based on the new information
-            updateViewMatrix();
-        }
-
-    private:
-        // Disable copying and assignment
-        Camera(Camera const &) = delete;
-        Camera & operator =(Camera const &) = delete;
-
-        // Private member function
-
-        /* Update the view matrix based on the current information */
-        void updateViewMatrix()
-        {
-            // Adjust cursor movement using the specified sensitivity
-            fPitch *= cMouseSensitivity;
-            fYaw   *= cMouseSensitivity;
-
-            // Create quaternions given the current pitch and yaw
-            glm::quat qPitch = glm::quat(glm::vec3(fPitch, 0.0f, 0.0f));
-            glm::quat qYaw   = glm::quat(glm::vec3(0.0f, fYaw, 0.0f));
-
-            // Reset pitch and yaw values for the current rotation
-            fPitch = 0.0f;
-            fYaw   = 0.0f;
-
-            // Update camera quaternion and normalise
-            cQuaternion = qYaw * qPitch * cQuaternion;
-            cQuaternion = glm::normalize(cQuaternion);
-
-            // Build rotation matrix using the camera quaternion
-            glm::mat4 matRotation = glm::mat4_cast(cQuaternion);
-
-            // Build translation matrix
-            glm::mat4 matTranslate = glm::translate(glm::mat4(1.0f), -cPosition);
-
-            // Update view matrix
-            matView = matRotation * matTranslate;
-        }
-
-        // Private member variables
-
-        // Camera quaternion and frame pitch and yaw
-        glm::quat cQuaternion;
-        GLfloat fPitch = 0.0f;
-        GLfloat fYaw   = 0.0f;
-
-        // Camera position
-        glm::vec3 cPosition;
-
-        // Variables used for bookkeeping
-        GLboolean isMousePressed = false;
-        GLboolean keysInUse[512];
-
-        // Last cursor position
-        GLfloat lastXPos = 0.0f;
-        GLfloat lastYPos = 0.0f;
-
-        // Camera settings
-        GLfloat cMovementSpeed;
-        GLfloat cMouseSensitivity;
-
-        // View matrix
-        glm::mat4 matView;
-    };
-}
-
+private:
+    bool firstMouse = false;
+    float lastX;
+    float lastY;
+    GLboolean keysInUse[512];
+    // Calculates the front vector from the Camera's (updated) Euler Angles
+    void updateCameraVectors()
+    {
+        // Calculate the new Front vector
+        glm::vec3 front;
+        front.x = cos(glm::radians(Yaw)) * cos(glm::radians(Pitch));
+        front.y = sin(glm::radians(Pitch));
+        front.z = sin(glm::radians(Yaw)) * cos(glm::radians(Pitch));
+        Front = glm::normalize(front);
+        // Also re-calculate the Right and Up vector
+        Right = glm::normalize(glm::cross(Front, WorldUp));  // Normalize the vectors, because their length gets closer to 0 the more you look up or down which results in slower movement.
+        Up    = glm::normalize(glm::cross(Right, Front));
+    }
+};
 #endif

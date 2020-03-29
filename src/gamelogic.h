@@ -14,3 +14,4 @@ void keyboardCallback(GLFWwindow* window, int key, int scancode,
 void mouseButtonCallback(GLFWwindow* window, int button, int action,
                          int mods);
 void mouseCallback(GLFWwindow* window, double x, double y);
+void processInput(GLFWwindow* window);

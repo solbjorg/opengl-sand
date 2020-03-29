@@ -31,8 +31,8 @@ enum KeyFrameAction {
 unsigned int currentKeyFrame = 0;
 unsigned int previousKeyFrame = 0;
 
-unsigned int deltaTime;
-unsigned int lastFrame;
+float deltaTime;
+float lastFrame;
 
 SceneNode* rootNode;
 SceneNode* terrainNode;
@@ -42,7 +42,7 @@ sf::SoundBuffer* buffer;
 Gloom::Shader* shader;
 sf::Sound* sound;
 
-Gloom::Camera camera(glm::vec3(0.0f,1.0f,0.0f), 10.0f);
+Camera camera(glm::vec3(0.0f,1.0f,0.0f));
 
 glm::mat4 VP;
 
@@ -62,20 +62,18 @@ const float debug_startTime = 0;
 double totalElapsedTime = debug_startTime;
 double gameElapsedTime = debug_startTime;
 
-
-//// A few lines to help you if you've never used c++ structs
-// struct LightSource {
-//     bool a_placeholder_value;
-// };
-// LightSource lightSources[/*Put number of light sources you want here*/];
+unsigned int heightmap;
+unsigned int normalShallowX;
+unsigned int normalShallowZ;
+unsigned int normalSteepX;
+unsigned int normalSteepZ;
 
 void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     options = gameOptions;
 
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
-    glfwSetKeyCallback(window, keyboardCallback);
-    glfwSetMouseButtonCallback(window, mouseButtonCallback);
     glfwSetCursorPosCallback(window, mouseCallback);
+    glfwSetKeyCallback(window, keyboardCallback);
 
     shader = new Gloom::Shader();
     shader->makeBasicShader("../res/shaders/simple.vert", "../res/shaders/simple.frag");
@@ -84,9 +82,19 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
     // Create meshes
     Mesh terrain = loadTerrainMesh("../res/models/sanddunes.obj");
     unsigned int terrainVAO = generateBuffer(terrain);
-    PNGImage sand_texture = loadPNGFile("../res/textures/sand.png");
+    PNGImage sand_texture = loadPNGFile("../res/textures/sand2.png");
     unsigned int sand_texture_id = getTexture(sand_texture, true);
 
+    PNGImage heightmapImg = loadPNGFile("../res/textures/HeightMap.png");
+    heightmap = getTexture(heightmapImg, true);
+    PNGImage heightmapShallowXImg = loadPNGFile("../res/textures/normalShallowX.png");
+    normalShallowX = getTexture(heightmapShallowXImg, true);
+    PNGImage heightmapShallowZImg = loadPNGFile("../res/textures/normalShallowZ.png");
+    normalShallowZ = getTexture(heightmapShallowZImg, true);
+    PNGImage heightmapSteepXImg = loadPNGFile("../res/textures/normalSteepX.png");
+    normalSteepX = getTexture(heightmapSteepXImg, true);
+    PNGImage heightmapSteepZImg = loadPNGFile("../res/textures/normalSteepZ.png");
+    normalSteepZ = getTexture(heightmapSteepZImg, true);
     // Construct scene
     rootNode = createSceneNode();
     terrainNode  = createSceneNode();
@@ -106,25 +114,9 @@ void initGame(GLFWwindow* window, CommandLineOptions gameOptions) {
 
 void updateFrame(GLFWwindow* window) {
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-
-    if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_1)) {
-        mouseLeftPressed = true;
-        mouseLeftReleased = false;
-    } else {
-        mouseLeftReleased = mouseLeftPressed;
-        mouseLeftPressed = false;
-    }
-    if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_2)) {
-        mouseRightPressed = true;
-        mouseRightReleased = false;
-    } else {
-        mouseRightReleased = mouseRightPressed;
-        mouseRightPressed = false;
-    }
-
     glm::mat4 projection = glm::perspective(glm::radians(80.0f), float(windowWidth) / float(windowHeight), 0.1f, 350.f);
 
-    glm::mat4 cameraTransform = camera.getViewMatrix();
+    glm::mat4 cameraTransform = camera.GetViewMatrix();
 
     VP = projection * cameraTransform;
 
@@ -155,6 +147,7 @@ void updateNodeTransformations(SceneNode* node, glm::mat4 transformationThusFar)
 }
 
 void renderNode(SceneNode* node) {
+    glUniform3fv(2, 1, glm::value_ptr(camera.Position));
     glUniformMatrix4fv(3, 1, GL_FALSE, glm::value_ptr(node->currentTransformationMatrix));
     glUniformMatrix4fv(4, 1, GL_FALSE, glm::value_ptr(VP));
 
@@ -162,6 +155,16 @@ void renderNode(SceneNode* node) {
         case GEOMETRY:
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, node->textureID);
+            glActiveTexture(GL_TEXTURE1);
+            glBindTexture(GL_TEXTURE_2D, normalShallowX);
+            glActiveTexture(GL_TEXTURE2);
+            glBindTexture(GL_TEXTURE_2D, normalShallowZ);
+            glActiveTexture(GL_TEXTURE3);
+            glBindTexture(GL_TEXTURE_2D, normalSteepX);
+            glActiveTexture(GL_TEXTURE4);
+            glBindTexture(GL_TEXTURE_2D, normalSteepZ);
+            glActiveTexture(GL_TEXTURE5);
+            glBindTexture(GL_TEXTURE_2D, heightmap);
             if(node->vertexArrayObjectID != -1) {
                 glBindVertexArray(node->vertexArrayObjectID);
                 glDrawElements(GL_TRIANGLES, node->VAOIndexCount, GL_UNSIGNED_INT, nullptr);
@@ -186,18 +189,15 @@ void renderFrame(GLFWwindow* window) {
     lastFrame = currentFrame;
     
     renderNode(rootNode);
-    camera.updateCamera(getTimeDeltaSeconds());
-}
-void keyboardCallback(GLFWwindow* window, int key, int scancode,
-                      int action, int mods) {
-    camera.handleKeyboardInputs(key, action);
-}
-
-void mouseButtonCallback(GLFWwindow* window, int button, int action,
-                         int mods) {
-    camera.handleMouseButtonInputs(button, action);
+    camera.updateCamera(deltaTime);
 }
 
 void mouseCallback(GLFWwindow* window, double x, double y) {
-    camera.handleCursorPosInput(x, y);
+    camera.ProcessMouseMovement(x, y);
+}
+
+void keyboardCallback(GLFWwindow* window, int key, int scancode,
+                      int action, int mods) {
+    camera.handleKeyboardInputs(key, action);
+    
 }
