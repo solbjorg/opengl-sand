@@ -76,7 +76,9 @@ unsigned int normalSteepZ;
 // frag shader settings
 float N_y = 0.3f;
 bool specular = true;
+bool show_normal_map = false;
 int shininess = 32;
+int dot_degree = 4;
 
 Gui *gui;
 
@@ -101,14 +103,16 @@ void initGame(GLFWwindow *window, CommandLineOptions gameOptions) {
   PNGImage heightmapImg = loadPNGFile("../res/textures/HeightMap.png");
   heightmap = getTexture(heightmapImg, true);
   PNGImage heightmapShallowXImg =
-      loadPNGFile("../res/textures/normalShallowX.png");
+      loadPNGFile("../res/textures/normalShallowX_2.png");
   normalShallowX = getTexture(heightmapShallowXImg, true);
   PNGImage heightmapShallowZImg =
-      loadPNGFile("../res/textures/normalShallowZ.png");
+      loadPNGFile("../res/textures/normalShallowZ_2.png");
   normalShallowZ = getTexture(heightmapShallowZImg, true);
-  PNGImage heightmapSteepXImg = loadPNGFile("../res/textures/normalSteepX.png");
+  PNGImage heightmapSteepXImg =
+      loadPNGFile("../res/textures/normalSteepX_2.png");
   normalSteepX = getTexture(heightmapSteepXImg, true);
-  PNGImage heightmapSteepZImg = loadPNGFile("../res/textures/normalSteepZ.png");
+  PNGImage heightmapSteepZImg =
+      loadPNGFile("../res/textures/normalSteepZ_2.png");
   normalSteepZ = getTexture(heightmapSteepZImg, true);
   // Construct scene
   rootNode = createSceneNode();
@@ -175,6 +179,8 @@ void renderNode(SceneNode *node) {
   glUniform1f(5, N_y);
   glUniform1i(6, specular);
   glUniform1i(7, shininess);
+  glUniform1i(8, dot_degree);
+  glUniform1i(9, show_normal_map);
 
   switch (node->nodeType) {
   case GEOMETRY:
@@ -227,8 +233,10 @@ void renderFrame(GLFWwindow *window) {
         shader->reload();
       }
       ImGui::Text("Frag");
+      ImGui::Checkbox("Show normal map?", &show_normal_map);
       ImGui::Text("Diffuse");
       ImGui::SliderFloat("N.y modifier", &N_y, 0.0f, 1.0f);
+      ImGui::SliderInt("Dot degree", &dot_degree, 1, 6);
       ImGui::Text("Specular");
       ImGui::Checkbox("Specular on?", &specular);
       ImGui::SliderInt("Shininess", &shininess, 0, 256);
