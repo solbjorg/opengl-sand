@@ -98,7 +98,7 @@ void initGame(GLFWwindow *window, CommandLineOptions gameOptions) {
   Mesh terrain = loadTerrainMesh("../res/models/sanddunes.obj");
   unsigned int terrainVAO = generateBuffer(terrain);
   PNGImage sand_texture = loadPNGFile("../res/textures/sand2.png");
-  unsigned int sand_texture_id = getTexture(sand_texture, true);
+  unsigned int sand_texture_id = getTexture(sand_texture, true, false);
 
   PNGImage heightmapImg = loadPNGFile("../res/textures/HeightMap.png");
   heightmap = getTexture(heightmapImg, true);
