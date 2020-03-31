@@ -1,5 +1,4 @@
 #version 430 core
-#define SHININESS 16
 
 in layout(location = 0) vec3 normal;
 in layout(location = 1) vec2 textureCoordinates;
@@ -8,6 +7,10 @@ in layout(location = 2) vec3 world_position;
 uniform layout(location = 2) vec3 camera_position;
 uniform layout(location = 3) mat4 model;
 uniform layout(location = 4) mat4 VP;
+uniform layout(location = 5) float N_y;
+// is specular on
+uniform layout(location = 6) bool specular;
+uniform layout(location = 7) unsigned int shininess;
 
 layout(binding=0) uniform sampler2D diffuseSand;
 layout(binding=1) uniform sampler2D heightmapShallowX;
@@ -29,7 +32,7 @@ void main()
     vec3 norm = normalize(normal);
     // it's noon ok
     vec3 light_direction = vec3(0.1, 1, -0.1);
-    vec3 camera_direction = normalize(camera_position - world_position);
+    vec3 camera_direction = normalize(world_position - camera_position);
 
     vec3 diffuse_color;
     vec3 specular_color;
@@ -52,13 +55,15 @@ void main()
 
     // diffuse
     // this kind of weird-looking version of lambert is lifted straight from the GDC talk
-    map_norm.y *= 0.3;
-    map_norm = normalize(map_norm);
-    diffuse_color += clamp(max(0.0f, 4 * dot(light_direction, map_norm)), 0.f, 1.f);
+    map_norm.y *= N_y;
+    //map_norm = normalize(map_norm);
+    diffuse_color += clamp(4 * dot(light_direction, map_norm), 0.f, 1.f);
 
     // specular
-    float spec_dot = dot(reflect(-light_direction, map_norm), camera_direction);
-    specular_color += pow(max(0.0f, spec_dot), SHININESS);
+    if (specular) {
+        float spec_dot = dot(reflect(-light_direction, map_norm), camera_direction);
+        specular_color += clamp(pow(max(0.0f, spec_dot), shininess), 0.0f, 1.0f);
+    }
     vec3 light = (diffuse_color + specular_color) * light_intensity;
     color = vec4(tex.xyz * light, 1.0f);
 }
