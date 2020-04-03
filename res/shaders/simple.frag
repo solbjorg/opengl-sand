@@ -66,18 +66,26 @@ void main()
 
     // triplanar normal maps
     // thanks to https://medium.com/@bgolus/normal-mapping-for-a-triplanar-shader-10bf39dca05a
-    vec3 norm_x = texture(normalSteepX, world_position.yz).xyz * 2.0 - 1.0;
-    //vec3 norm_y = vec3(norm.xy + norm.xz, abs(norm.z) * norm.y);
-    vec3 norm_z = texture(normalSteepZ, world_position.xy).xyz * 2.0 - 1.0;
-    norm_z = vec3(norm_z.xy + norm.xy, abs(norm_z.z) * norm.z);
-    norm_x = vec3(norm_x.xy + norm.zy, abs(norm_x.z) * norm.x);
     vec3 norm_sign = sign(norm);
-    norm_x *= norm_sign.x;
-    norm_z *= norm_sign.z;
+    vec3 steep_norm_x = texture(normalSteepX, world_position.yz).xyz * 2.0 - 1.0;
+    vec3 steep_norm_z = texture(normalSteepZ, world_position.xy).xyz * 2.0 - 1.0;
+    steep_norm_x = vec3(steep_norm_x.xy + norm.zy, abs(steep_norm_x.z) * norm.x);
+    steep_norm_z = vec3(steep_norm_z.xy + norm.xy, abs(steep_norm_z.z) * norm.z);
+    steep_norm_x *= norm_sign.x;
+    steep_norm_z *= norm_sign.z;
 
-    map_norm = normalize(norm_x.zyx * blending.x + norm.xzy * blending.y + norm_z.xyz * blending.z).yzx;
-    //if (abs(map_norm.x) > abs(map_norm.z)) map_norm = norm;
+    vec3 shallow_norm_x = texture(normalShallowX, world_position.yz).xyz * 2.0 - 1.0;
+    vec3 shallow_norm_z = texture(normalShallowZ, world_position.xy).xyz * 2.0 - 1.0;
+    shallow_norm_x = vec3(shallow_norm_x.xy + norm.zy, abs(shallow_norm_x.z) * norm.x);
+    shallow_norm_z = vec3(shallow_norm_z.xy + norm.xy, abs(shallow_norm_z.z) * norm.z);
+    shallow_norm_x *= norm_sign.x;
+    shallow_norm_z *= norm_sign.z;
 
+    // I'll be honest: the yzx swizzle at the end is arrived at through trial and error!
+    float steepness = 1;//abs(norm.y);
+    vec3 steep_map_norm = normalize(steep_norm_x.zyx * blending.x + norm.xzy * blending.y + steep_norm_z.xyz * blending.z).yzx;
+    vec3 shallow_map_norm = normalize(shallow_norm_x.zyx * blending.x + norm.xzy * blending.y + shallow_norm_z.xyz * blending.z).yzx;
+    map_norm = steepness * steep_map_norm + (1 - steepness) * shallow_map_norm;
 
     // if this is mostly on the x plane
     //if (blending.x > blending.z && blending.x > blending.y) {
