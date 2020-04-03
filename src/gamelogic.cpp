@@ -22,6 +22,7 @@
 #include "imgui.hpp"
 
 #include "OBJLoader.hpp"
+#include "quad.hpp"
 #include "utilities/camera.hpp"
 #include "utilities/imageLoader.hpp"
 #include "utilities/texture.hpp"
@@ -31,9 +32,6 @@ enum KeyFrameAction { BOTTOM, TOP };
 #include "timestamps.h"
 
 bool escapeMouse = false;
-
-unsigned int currentKeyFrame = 0;
-unsigned int previousKeyFrame = 0;
 
 float deltaTime;
 float lastFrame;
@@ -45,6 +43,7 @@ SceneNode *terrainNode;
 // of the program
 sf::SoundBuffer *buffer;
 Gloom::Shader *shader;
+Gloom::Shader *screen_shader;
 sf::Sound *sound;
 
 Camera camera(glm::vec3(0.0f, 1.0f, 0.0f));
@@ -82,6 +81,11 @@ int dot_degree = 4;
 
 Gui *gui;
 
+// post-processing requirements
+unsigned int fbo;
+unsigned int fbo_texture;
+unsigned int screen_quadVAO;
+
 void initGame(GLFWwindow *window, CommandLineOptions gameOptions) {
   options = gameOptions;
   gui = new Gui(window);
@@ -89,10 +93,44 @@ void initGame(GLFWwindow *window, CommandLineOptions gameOptions) {
   glfwSetCursorPosCallback(window, mouseCallback);
   glfwSetKeyCallback(window, keyboardCallback);
 
+  Mesh screen_quad = quad();
+  screen_quadVAO = generateBuffer(screen_quad);
+
+  // generate frame buffer; got it from here:
+  // https://learnopengl.com/Advanced-OpenGL/Framebuffers
+  glGenFramebuffers(1, &fbo);
+  glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+  glGenTextures(1, &fbo_texture);
+  glBindTexture(GL_TEXTURE_2D, fbo_texture);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, windowWidth, windowHeight, 0, GL_RGB,
+               GL_UNSIGNED_BYTE, NULL);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+                         fbo_texture, 0);
+  unsigned int rbo;
+  glGenRenderbuffers(1, &rbo);
+  glBindRenderbuffer(GL_RENDERBUFFER, rbo);
+  glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, windowWidth,
+                        windowHeight);
+  glBindRenderbuffer(GL_RENDERBUFFER, 0);
+  glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT,
+                            GL_RENDERBUFFER, rbo);
+  if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+    std::cout << "ERROR::FRAMEBUFFER:: Framebuffer is not complete!"
+              << std::endl;
+  }
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+  // generate & activate shader
   shader = new Gloom::Shader();
   shader->makeBasicShader("../res/shaders/simple.vert",
                           "../res/shaders/simple.frag");
   shader->activate();
+
+  screen_shader = new Gloom::Shader();
+  screen_shader->makeBasicShader("../res/shaders/screen.vert",
+                                 "../res/shaders/screen.frag");
 
   // Create meshes
   Mesh terrain = loadTerrainMesh("../res/models/sanddunes.obj");
@@ -245,8 +283,24 @@ void renderFrame(GLFWwindow *window) {
     ImGui::Render();
   }
 
+  shader->activate();
+  glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+  glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+  glClear(GL_COLOR_BUFFER_BIT |
+          GL_DEPTH_BUFFER_BIT); // we're not using the stencil buffer now
+  glEnable(GL_DEPTH_TEST);
   renderNode(rootNode);
   camera.updateCamera(deltaTime);
+  // now render the texture to the screen
+  screen_shader->activate();
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+  glClear(GL_COLOR_BUFFER_BIT);
+
+  glActiveTexture(GL_TEXTURE0);
+  glBindTexture(GL_TEXTURE_2D, fbo_texture);
+  glBindVertexArray(screen_quadVAO);
+  glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
 }
 
 void mouseCallback(GLFWwindow *window, double x, double y) {
