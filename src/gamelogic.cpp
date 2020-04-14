@@ -270,6 +270,7 @@ void renderFrame(GLFWwindow *window) {
       ImGui::Begin("Shader");
       if (ImGui::Button("Reload shader")) {
         shader->reload();
+        screen_shader->reload();
       }
       ImGui::Text("Frag");
       ImGui::Checkbox("Show normal map?", &show_normal_map);
