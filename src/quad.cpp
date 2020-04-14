@@ -9,8 +9,8 @@ Mesh quad() {
   glm::vec4 verts[4] = {
       {-1.0, 1.0f, 0.0f, 0.0f},
       {-1.0, -1.0f, 0.0f, 0.0f},
-      {0.0, -1.0f, 0.0f, 0.0f},
-      {0.0, 1.0f, 0.0f, 0.0f},
+      {1.0, -1.0f, 0.0f, 0.0f},
+      {1.0, 1.0f, 0.0f, 0.0f},
   };
   unsigned indices[6] = {0, 1, 2, 0, 2, 3};
   // gcc gang, we make 4 normals all pointing out from the quad:

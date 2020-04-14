@@ -78,6 +78,7 @@ bool specular = true;
 bool show_normal_map = false;
 int shininess = 32;
 int dot_degree = 4;
+glm::vec3 tint = {1.0f, 0.8f, 0.8f};
 
 Gui *gui;
 
@@ -277,7 +278,11 @@ void renderFrame(GLFWwindow *window) {
       ImGui::SliderInt("Dot degree", &dot_degree, 1, 6);
       ImGui::Text("Specular");
       ImGui::Checkbox("Specular on?", &specular);
-      ImGui::SliderInt("Shininess", &shininess, 0, 256);
+      if (specular) {
+        ImGui::SliderInt("Shininess", &shininess, 0, 256);
+      }
+      ImGui::Text("Preprocesing");
+      ImGui::ColorEdit3("Tint", glm::value_ptr(tint));
       ImGui::End();
     }
     ImGui::Render();
@@ -293,6 +298,7 @@ void renderFrame(GLFWwindow *window) {
   camera.updateCamera(deltaTime);
   // now render the texture to the screen
   screen_shader->activate();
+  glUniform3fv(0, 1, glm::value_ptr(tint));
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
   glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
   glClear(GL_COLOR_BUFFER_BIT);

@@ -5,7 +5,9 @@ in vec2 textureCoordinates;
 
 layout(binding=0) uniform sampler2D screen_texture;
 
+uniform layout(location = 0) vec3 tint;
+
 void main()
 {
-    color = texture(screen_texture, textureCoordinates) * vec4(0.5, 0.3, 0.8, 1.0);
+    color = texture(screen_texture, textureCoordinates) * vec4(tint, 1.0);
 }
