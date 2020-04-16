@@ -75,7 +75,7 @@ unsigned int normalSteepZ;
 // frag shader settings
 float N_y = 0.3f;
 bool specular = true;
-bool show_normal_map = false;
+int show_normal_map = 0; // 0 = diffuse, 1 = normal, 2 = normal mapped
 int shininess = 32;
 int dot_degree = 4;
 glm::vec3 tint = {1.0f, 0.8f, 0.8f};
@@ -273,7 +273,12 @@ void renderFrame(GLFWwindow *window) {
         screen_shader->reload();
       }
       ImGui::Text("Frag");
-      ImGui::Checkbox("Show normal map?", &show_normal_map);
+      // ImGui::Checkbox("Show normal map?", &show_normal_map);
+      ImGui::RadioButton("Diffuse", &show_normal_map, 0);
+      ImGui::SameLine();
+      ImGui::RadioButton("Normals", &show_normal_map, 1);
+      ImGui::SameLine();
+      ImGui::RadioButton("Normal map", &show_normal_map, 2);
       ImGui::Text("Diffuse");
       ImGui::SliderFloat("N.y modifier", &N_y, 0.0f, 1.0f);
       ImGui::SliderInt("Dot degree", &dot_degree, 1, 6);

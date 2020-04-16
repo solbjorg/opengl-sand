@@ -12,7 +12,7 @@ uniform layout(location = 5) float N_y;
 uniform layout(location = 6) bool specular;
 uniform layout(location = 7) int shininess;
 uniform layout(location = 8) int dot_degree;
-uniform layout(location = 9) bool show_normal_map;
+uniform layout(location = 9) int show_normal_map;
 
 layout(binding=0) uniform sampler2D diffuseSand;
 layout(binding=1) uniform sampler2D normalShallowX;
@@ -23,8 +23,8 @@ layout(binding=4) uniform sampler2D normalSteepZ;
 out vec4 color;
 
 const vec3 sand_color = vec3(0.929f, 0.788f, 0.686f);
-const vec3 light_source = vec3(100, 1000, 0);
-const float light_intensity = 0.9f;
+const vec3 light_position = vec3(0, 10000, 1000);
+const float light_intensity = 1.0f;
 
 float rand(vec2 co) { return fract(sin(dot(co.xy, vec2(12.9898,78.233))) * 43758.5453); }
 float dither(vec2 uv) { return (rand(uv)*2.0-1.0) / 256.0; }
@@ -43,11 +43,11 @@ void main()
     vec3 norm = normalize(normal);
     vec3 map_norm;
     // it's noon ok
-    vec3 light_direction = normalize(vec3(0,1,0));
-    vec3 camera_direction = normalize(world_position - camera_position);
+    vec3 light_direction = normalize(light_position - world_position);
+    vec3 camera_direction = normalize(camera_position - world_position);
 
     vec3 diffuse_color;
-    vec3 specular_color;
+    float specular_intensity;
 
     // triplanar mapping; thanks to https://gamedevelopment.tutsplus.com/articles/use-tri-planar-texture-mapping-for-better-terrain--gamedev-13821
     //vec3 blending = abs(norm);
@@ -56,49 +56,31 @@ void main()
     //blending /= b;
     //vec3 blending = clamp(pow(norm, vec3(4)), 0.0f, 1.0f);
     //vec3 blending = clamp(pow(norm, vec3(4)), 0.0f, 1.0f);
-    vec3 blending = abs(norm);
-    blending /= max(dot(blending, vec3(1,1,1)), 0.0001);
+    vec3 blending = pow(abs(norm), vec3(4));
+    blending /= dot(blending, vec3(1,1,1));
     vec4 xaxis = texture(diffuseSand, world_position.yz);
     vec4 yaxis = texture(diffuseSand, world_position.xz);
     vec4 zaxis = texture(diffuseSand, world_position.xy);
     // blend the results of the 3 planar projections.
     vec4 tex = xaxis * blending.x + yaxis * blending.y + zaxis * blending.z;
 
-    // triplanar normal maps
+    // triplanar normal maps using a whiteout blend
     // thanks to https://medium.com/@bgolus/normal-mapping-for-a-triplanar-shader-10bf39dca05a
-    vec3 norm_sign = sign(norm);
     vec3 steep_norm_x = texture(normalSteepX, world_position.yz).xyz * 2.0 - 1.0;
     vec3 steep_norm_z = texture(normalSteepZ, world_position.xy).xyz * 2.0 - 1.0;
     steep_norm_x = vec3(steep_norm_x.xy + norm.zy, abs(steep_norm_x.z) * norm.x);
     steep_norm_z = vec3(steep_norm_z.xy + norm.xy, abs(steep_norm_z.z) * norm.z);
-    steep_norm_x *= norm_sign.x;
-    steep_norm_z *= norm_sign.z;
 
-    vec3 shallow_norm_x = texture(normalShallowX, world_position.yz).xyz * 2.0 - 1.0;
-    vec3 shallow_norm_z = texture(normalShallowZ, world_position.xy).xyz * 2.0 - 1.0;
+    vec3 shallow_norm_x = texture(normalShallowX, world_position.yz * 2).xyz * 2.0 - 1.0;
+    vec3 shallow_norm_z = texture(normalShallowZ, world_position.xy * 2).xyz * 2.0 - 1.0;
     shallow_norm_x = vec3(shallow_norm_x.xy + norm.zy, abs(shallow_norm_x.z) * norm.x);
     shallow_norm_z = vec3(shallow_norm_z.xy + norm.xy, abs(shallow_norm_z.z) * norm.z);
-    shallow_norm_x *= norm_sign.x;
-    shallow_norm_z *= norm_sign.z;
 
-    // I'll be honest: the yzx swizzle at the end is arrived at through trial and error!
-    float steepness = 1;//abs(norm.y);
-    vec3 steep_map_norm = normalize(steep_norm_x.zyx * blending.x + norm.xzy * blending.y + steep_norm_z.xyz * blending.z).yzx;
-    vec3 shallow_map_norm = normalize(shallow_norm_x.zyx * blending.x + norm.xzy * blending.y + shallow_norm_z.xyz * blending.z).yzx;
-    map_norm = steepness * steep_map_norm + (1 - steepness) * shallow_map_norm;
-
-    // if this is mostly on the x plane
-    //if (blending.x > blending.z && blending.x > blending.y) {
-        //map_norm = normalize(texture(normalSteepX, world_position.yz).xyz * 2.0 - 1.0);
-    //}
-    //// if this is mostly on the z plane
-    //else if (blending.z > blending.x && blending.z > blending.y) {
-        //map_norm = normalize(texture(normalSteepZ, world_position.xy).xyz * 2.0 - 1.0);
-    //}
-    //// two elements are equal or y is greatest
-    //else {
-        //map_norm = norm;
-    //}
+    float steepness = 1- abs(norm.y);
+    vec3 steep_map_norm = normalize(steep_norm_x.zyx * blending.x + /* norm.xyz * blending.y + */ steep_norm_z.xyz * blending.z).xyz;
+    vec3 shallow_map_norm = normalize(shallow_norm_x.zyx * blending.x + shallow_norm_z.xyz * blending.z).xyz;
+    map_norm = steepness * 2 * steep_map_norm + (1 - steepness) * norm;
+    //map_norm = steep_map_norm;
 
     // diffuse
     // this kind of weird-looking version of lambert is lifted straight from the GDC talk
@@ -107,12 +89,17 @@ void main()
 
     // specular
     if (specular) {
-        float spec_dot = dot(reflect(-light_direction, map_norm), camera_direction);
-        specular_color += clamp(.5f * spec_dot, 0.f, 1.f);//+= clamp(pow(max(0.0f, spec_dot), shininess), 0.0f, 1.0f);
+        //float spec_dot = max(dot(reflect(-light_direction, map_norm), camera_direction), 0);
+        vec3 H = normalize(light_direction + camera_direction);
+        //specular_intensity += clamp(.5f * spec_dot, 0.f, 1.f);//+= clamp(pow(max(0.0f, spec_dot), shininess), 0.0f, 1.0f);
+        specular_intensity = clamp(pow(max(dot(norm, H), 0.0), shininess), 0, 1);
     }
-    vec3 light = (diffuse_color + specular_color) * light_intensity;
-    if (show_normal_map)
-        color = vec4(map_norm, 1.0f);
+    vec3 spec = specular_intensity * vec3(0.3);
+    vec3 light = (diffuse_color + spec) * light_intensity;
+    if (show_normal_map == 1)
+        color = vec4(abs(norm), 1.0f);
+    else if (show_normal_map == 2)
+        color = vec4(abs(map_norm), 1.0f);
     else
         color = vec4(tex.xyz * light, 1.0f);
 }
