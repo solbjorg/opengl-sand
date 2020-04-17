@@ -75,11 +75,14 @@ unsigned int normalSteepZ;
 // frag shader settings
 float N_y = 0.3f;
 bool specular = true;
+bool sparkle = true;
+// not entirely for the normal map anymore, call it legacy :)
 int show_normal_map =
     0; // 0 = diffuse, 1 = normal, 2 = normal mapped, 3 = specular map
 int shininess = 32;
 int dot_degree = 4;
 glm::vec3 tint = {1.0f, 0.8f, 0.8f};
+bool glitter = true;
 
 Gui *gui;
 
@@ -221,6 +224,7 @@ void renderNode(SceneNode *node) {
   glUniform1i(7, shininess);
   glUniform1i(8, dot_degree);
   glUniform1i(9, show_normal_map);
+  glUniform1i(10, glitter);
 
   switch (node->nodeType) {
   case GEOMETRY:
@@ -290,6 +294,7 @@ void renderFrame(GLFWwindow *window) {
       if (specular) {
         ImGui::SliderInt("Shininess", &shininess, 0, 256);
       }
+      ImGui::Checkbox("Glitter specular on?", &glitter);
       ImGui::Text("Preprocesing");
       ImGui::ColorEdit3("Tint", glm::value_ptr(tint));
       ImGui::End();
