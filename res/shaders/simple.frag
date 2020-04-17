@@ -170,18 +170,42 @@ void main()
 
     // sparkling! adapted from https://developer.amd.com/wordpress/media/2012/10/Shopf-Procedural.pdf
     float sparkle = 0;
+    // We build on good old phong specular
     float spec_base = clamp(dot(reflect(-light_direction, norm), camera_direction), 0, 1);
-    vec3 fp = fract(snoise(world_position / 0.02) / 10 * (camera_position - light_position));
+    /* The slides from the AMD talk don't go into too much detail, so I've worked out most of this
+     * by experimentation. It did actually lead to pretty decent understanding all in all.
+     * The division by 0.02 increases the noisiness; if we remove it, we start seeing patterns in the noise
+     * which we don't want; it does make for a pretty cool line effect, just not the one we want!
+     * We multiply by the view vector, instead of add like in the slides. It still leads to some pretty
+     * strange effects with the glitter at times, which we might not get by adding it - but at ground level
+     * those effects pretty much disappear, and since the glitter is subtle any anomalies aren't noticeable
+     * meaning it's fine. The fract is mostly there to make it more random, in addition to making them add
+     * together more nicely later.
+     */
+    vec3 fp = fract(snoise(world_position / 0.02) * 0.1 * (camera_position - light_position));
+    /*
+     * fp *= (1 - fp) basically distributes it evenly. If we remove it, the noise will only be applied to
+     * one side of the screen; at least that's what experimentation told me.
+     */
     fp *= (1 - fp);
-    float glitter = clamp(1 - 11 * (fp.x + fp.y + fp.z), 0, 1);
-    sparkle = glitter * pow(spec_base, 1.5) ;
+    /*
+     * So, not entirely sure, but the multiplied 7 determines the threshold by which something glitters.
+     * Setting it to 3 gets you really glittery, any lower and it just starts looking like a very noisy
+     * version of Phong specular. 11 removes a lot of the noise and is nice, but 7 is a happy medium if
+     * I want to show the sparkle off, in addition to feeling more stylised.
+     */
+    float glitter = clamp(1 - 7 * (fp.x + fp.y + fp.z), 0, 1);
+    // The spec_base actually doesn't add that much, but it's the little things
+    sparkle = glitter * pow(spec_base, 1.5);
 
     vec3 spec = specular_intensity * vec3(0.3);
     vec3 light = (diffuse_color + spec + sparkle) * light_intensity;
     if (show_normal_map == 1)
-        color = vec4(vec3(fract(snoise(world_position / 0.14)/100)), 1.0f);
+        color = vec4(abs(norm), 1.0f);
     else if (show_normal_map == 2)
         color = vec4(abs(map_norm), 1.0f);
+    else if (show_normal_map == 3)
+        color = vec4(vec3(abs(sparkle)), 1.0f);
     else
         color = vec4(tex.xyz * light, 1.0f);
 }
