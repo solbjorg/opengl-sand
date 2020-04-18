@@ -120,6 +120,10 @@ uniform layout(location = 7) int shininess;
 uniform layout(location = 8) int dot_degree;
 uniform layout(location = 9) int show_normal_map;
 uniform layout(location = 10) bool glitter;
+uniform layout(location = 11) float roughness;
+uniform layout(location = 12) float albedo;
+// 0 = lambert, 1 = oren nayar
+uniform layout(location = 13) int diffuse_lighting_model;
 
 layout(binding=0) uniform sampler2D diffuseSand;
 layout(binding=1) uniform sampler2D normalShallowX;
@@ -185,8 +189,11 @@ void main()
     // diffuse
     // this kind of weird-looking version of lambert is lifted straight from the GDC talk
     // canonically, dot_degree should be 4 and N_y should be 0.3
-    // diffuse_color += clamp(dot_degree * dot(light_direction, map_norm * vec3(1,N_y,1)), 0.f, 1.f);
-    diffuse_color = vec3(orenNayarDiffuse(light_direction, camera_direction, map_norm, 1, 1));
+    if (diffuse_lighting_model == 0) {
+        diffuse_color += clamp(dot_degree * dot(light_direction, map_norm * vec3(1,N_y,1)), 0.f, 1.f);
+    } else if (diffuse_lighting_model == 1) {
+        diffuse_color += orenNayarDiffuse(light_direction, camera_direction, map_norm, roughness, albedo);
+    }
 
     // specular
     if (specular) {

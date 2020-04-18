@@ -83,6 +83,9 @@ int shininess = 32;
 int dot_degree = 4;
 glm::vec3 tint = {1.0f, 0.8f, 0.8f};
 bool glitter = true;
+float albedo = 1.0f;
+float roughness = 1.0f;
+int diffuse_lighting_model = 0; // 0 = lambert, 1 = oren-nayar
 
 Gui *gui;
 
@@ -225,6 +228,9 @@ void renderNode(SceneNode *node) {
   glUniform1i(8, dot_degree);
   glUniform1i(9, show_normal_map);
   glUniform1i(10, glitter);
+  glUniform1f(11, roughness);
+  glUniform1f(12, albedo);
+  glUniform1i(13, diffuse_lighting_model);
 
   switch (node->nodeType) {
   case GEOMETRY:
@@ -277,7 +283,6 @@ void renderFrame(GLFWwindow *window) {
         shader->reload();
         screen_shader->reload();
       }
-      ImGui::Text("Frag");
       // ImGui::Checkbox("Show normal map?", &show_normal_map);
       ImGui::RadioButton("Diffuse", &show_normal_map, 0);
       ImGui::SameLine();
@@ -286,9 +291,18 @@ void renderFrame(GLFWwindow *window) {
       ImGui::RadioButton("Normal map", &show_normal_map, 2);
       ImGui::SameLine();
       ImGui::RadioButton("Specular map", &show_normal_map, 3);
+      ImGui::Text("Frag");
       ImGui::Text("Diffuse");
-      ImGui::SliderFloat("N.y modifier", &N_y, 0.0f, 1.0f);
-      ImGui::SliderInt("Dot degree", &dot_degree, 1, 6);
+      ImGui::RadioButton("Lambert", &diffuse_lighting_model, 0);
+      ImGui::SameLine();
+      ImGui::RadioButton("Oren-Nayar", &diffuse_lighting_model, 1);
+      if (diffuse_lighting_model == 0) {
+        ImGui::SliderFloat("N.y modifier", &N_y, 0.0f, 1.0f);
+        ImGui::SliderInt("Dot degree", &dot_degree, 1, 6);
+      } else if (diffuse_lighting_model == 1) {
+        ImGui::SliderFloat("Albedo", &albedo, 0.0f, 1.0f);
+        ImGui::SliderFloat("Roughness", &roughness, 0.0f, 1.0f);
+      }
       ImGui::Text("Specular");
       ImGui::Checkbox("Specular on?", &specular);
       if (specular) {
