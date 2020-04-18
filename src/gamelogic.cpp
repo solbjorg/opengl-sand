@@ -17,6 +17,7 @@
 #include <utilities/shader.hpp>
 #include <utilities/timeutils.h>
 #define GLM_ENABLE_EXPERIMENTAL
+#include <glm/ext.hpp>
 #include <glm/gtx/transform.hpp>
 
 #include "imgui.hpp"
@@ -38,12 +39,14 @@ float lastFrame;
 
 SceneNode *rootNode;
 SceneNode *terrainNode;
+SceneNode *sunNode;
 
 // These are heap allocated, because they should not be initialised at the start
 // of the program
 sf::SoundBuffer *buffer;
 Gloom::Shader *shader;
 Gloom::Shader *screen_shader;
+Gloom::Shader *sun_shader;
 sf::Sound *sound;
 
 Camera camera(glm::vec3(0.0f, 1.0f, 0.0f));
@@ -66,13 +69,10 @@ const float debug_startTime = 0;
 double totalElapsedTime = debug_startTime;
 double gameElapsedTime = debug_startTime;
 
-unsigned int heightmap;
-unsigned int normalShallowX;
-unsigned int normalShallowZ;
 unsigned int normalSteepX;
 unsigned int normalSteepZ;
 
-// frag shader settings
+// imgui settings
 float N_y = 0.3f;
 bool specular = true;
 bool sparkle = true;
@@ -82,11 +82,17 @@ int show_normal_map =
 int shininess = 32;
 float spec_strength = 0.3f;
 int dot_degree = 4;
-glm::vec3 tint = {1.0f, 0.8f, 0.8f};
 bool glitter = true;
+int glitter_strength = 11;
+float noise_scale = 0.01f;
 float albedo = 1.0f;
 float roughness = 0.9f;
 int diffuse_lighting_model = 1; // 0 = lambert, 1 = oren-nayar
+float t = 0.4f;                 // represents time between day and night
+
+// postprocessing
+bool enable_postprocessing = true;
+glm::vec3 tint = {1.0f, 0.8f, 0.8f};
 
 Gui *gui;
 
@@ -141,20 +147,19 @@ void initGame(GLFWwindow *window, CommandLineOptions gameOptions) {
   screen_shader->makeBasicShader("../res/shaders/screen.vert",
                                  "../res/shaders/screen.frag");
 
+  sun_shader = new Gloom::Shader();
+  sun_shader->makeBasicShader("../res/shaders/sun.vert",
+                              "../res/shaders/sun.frag");
+
   // Create meshes
   Mesh terrain = loadTerrainMesh("../res/models/sanddunes.obj");
   unsigned int terrainVAO = generateBuffer(terrain);
   PNGImage sand_texture = loadPNGFile("../res/textures/sand2.png");
   unsigned int sand_texture_id = getTexture(sand_texture, true, false);
 
-  PNGImage heightmapImg = loadPNGFile("../res/textures/HeightMap.png");
-  heightmap = getTexture(heightmapImg, true);
-  PNGImage heightmapShallowXImg =
-      loadPNGFile("../res/textures/normalShallowX_2.png");
-  normalShallowX = getTexture(heightmapShallowXImg, true);
-  PNGImage heightmapShallowZImg =
-      loadPNGFile("../res/textures/normalShallowZ_2.png");
-  normalShallowZ = getTexture(heightmapShallowZImg, true);
+  Mesh sphere = loadTerrainMesh("../res/models/sphere.obj");
+  unsigned int sunVAO = generateBuffer(sphere);
+
   PNGImage heightmapSteepXImg =
       loadPNGFile("../res/textures/normalSteepX_2.png");
   normalSteepX = getTexture(heightmapSteepXImg, true);
@@ -164,12 +169,20 @@ void initGame(GLFWwindow *window, CommandLineOptions gameOptions) {
   // Construct scene
   rootNode = createSceneNode();
   terrainNode = createSceneNode();
+  sunNode = createSceneNode();
 
   rootNode->children.push_back(terrainNode);
+  terrainNode->children.push_back(sunNode);
 
   terrainNode->vertexArrayObjectID = terrainVAO;
   terrainNode->VAOIndexCount = terrain.indices.size();
   terrainNode->textureID = sand_texture_id;
+
+  sunNode->vertexArrayObjectID = sunVAO;
+  sunNode->VAOIndexCount = sphere.indices.size();
+  sunNode->position = glm::vec3(0.0f, 100.0f, 100.0f);
+  sunNode->scale = glm::vec3(30);
+  sunNode->nodeType = POINT_LIGHT;
 
   getTimeDeltaSeconds();
 
@@ -183,7 +196,7 @@ void initGame(GLFWwindow *window, CommandLineOptions gameOptions) {
 void updateFrame(GLFWwindow *window) {
   glm::mat4 projection =
       glm::perspective(glm::radians(80.0f),
-                       float(windowWidth) / float(windowHeight), 0.1f, 350.f);
+                       float(windowWidth) / float(windowHeight), 0.1f, 1000.f);
 
   glm::mat4 cameraTransform = camera.GetViewMatrix();
 
@@ -207,8 +220,13 @@ void updateNodeTransformations(SceneNode *node,
   switch (node->nodeType) {
   case GEOMETRY:
     break;
-  case POINT_LIGHT:
+  case POINT_LIGHT: {
+    float x = t * 2.0 - 1.0;
+    float zpos = x * 500;
+    node->position.z = zpos;
+    node->position.y = ((zpos + 500) * (500 - zpos)) / 500;
     break;
+  }
   case SPOT_LIGHT:
     break;
   }
@@ -219,35 +237,33 @@ void updateNodeTransformations(SceneNode *node,
 }
 
 void renderNode(SceneNode *node) {
-  glUniform3fv(2, 1, glm::value_ptr(camera.Position));
-  glUniformMatrix4fv(3, 1, GL_FALSE,
-                     glm::value_ptr(node->currentTransformationMatrix));
-  glUniformMatrix4fv(4, 1, GL_FALSE, glm::value_ptr(VP));
-  glUniform1f(5, N_y);
-  glUniform1i(6, specular);
-  glUniform1i(7, shininess);
-  glUniform1i(8, dot_degree);
-  glUniform1i(9, show_normal_map);
-  glUniform1i(10, glitter);
-  glUniform1f(11, roughness);
-  glUniform1f(12, albedo);
-  glUniform1i(13, diffuse_lighting_model);
-  glUniform1f(14, spec_strength);
 
   switch (node->nodeType) {
   case GEOMETRY:
+    glUniform3fv(2, 1, glm::value_ptr(camera.Position));
+    glUniformMatrix4fv(3, 1, GL_FALSE,
+                       glm::value_ptr(node->currentTransformationMatrix));
+    glUniformMatrix4fv(4, 1, GL_FALSE, glm::value_ptr(VP));
+    glUniform1f(5, N_y);
+    glUniform1i(6, specular);
+    glUniform1i(7, shininess);
+    glUniform1i(8, dot_degree);
+    glUniform1i(9, show_normal_map);
+    glUniform1i(10, glitter);
+    glUniform1f(11, roughness);
+    glUniform1f(12, albedo);
+    glUniform1i(13, diffuse_lighting_model);
+    glUniform1f(14, spec_strength);
+    glUniform3fv(15, 1, glm::value_ptr(sunNode->position));
+    glUniform1i(16, glitter_strength);
+    glUniform1f(17, noise_scale);
+
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, node->textureID);
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, normalShallowX);
-    glActiveTexture(GL_TEXTURE2);
-    glBindTexture(GL_TEXTURE_2D, normalShallowZ);
     glActiveTexture(GL_TEXTURE3);
     glBindTexture(GL_TEXTURE_2D, normalSteepX);
     glActiveTexture(GL_TEXTURE4);
     glBindTexture(GL_TEXTURE_2D, normalSteepZ);
-    glActiveTexture(GL_TEXTURE5);
-    glBindTexture(GL_TEXTURE_2D, heightmap);
     if (node->vertexArrayObjectID != -1) {
       glBindVertexArray(node->vertexArrayObjectID);
       glDrawElements(GL_TRIANGLES, node->VAOIndexCount, GL_UNSIGNED_INT,
@@ -255,7 +271,17 @@ void renderNode(SceneNode *node) {
     }
     break;
   case POINT_LIGHT:
-    break;
+    sun_shader->activate();
+    // glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glUniformMatrix4fv(1, 1, GL_FALSE,
+                       glm::value_ptr(node->currentTransformationMatrix));
+    glUniformMatrix4fv(2, 1, GL_FALSE, glm::value_ptr(VP));
+    if (node->vertexArrayObjectID != -1) {
+      glBindVertexArray(node->vertexArrayObjectID);
+      glDrawElements(GL_TRIANGLES, node->VAOIndexCount, GL_UNSIGNED_INT,
+                     nullptr);
+    }
+    shader->activate();
   case SPOT_LIGHT:
     break;
   }
@@ -263,6 +289,58 @@ void renderNode(SceneNode *node) {
   for (SceneNode *child : node->children) {
     renderNode(child);
   }
+}
+
+void renderImGui() {
+  ImGui_ImplOpenGL3_NewFrame();
+  ImGui_ImplGlfw_NewFrame();
+  ImGui::NewFrame();
+  if (escapeMouse) {
+    ImGui::Begin("Shader");
+    ImGui::SliderFloat("Time", &t, 0.0f, 1.0f);
+    if (ImGui::Button("Reload shader")) {
+      shader->reload();
+      screen_shader->reload();
+    }
+    // ImGui::Checkbox("Show normal map?", &show_normal_map);
+    ImGui::RadioButton("Diffuse", &show_normal_map, 0);
+    ImGui::SameLine();
+    ImGui::RadioButton("Normals", &show_normal_map, 1);
+    ImGui::SameLine();
+    ImGui::RadioButton("Normal map", &show_normal_map, 2);
+    ImGui::SameLine();
+    ImGui::RadioButton("Specular map", &show_normal_map, 3);
+    ImGui::Text("Frag");
+    ImGui::Text("Diffuse");
+    ImGui::RadioButton("Lambert", &diffuse_lighting_model, 0);
+    ImGui::SameLine();
+    ImGui::RadioButton("Oren-Nayar", &diffuse_lighting_model, 1);
+    if (diffuse_lighting_model == 0) {
+      ImGui::SliderFloat("N.y modifier", &N_y, 0.0f, 1.0f);
+      ImGui::SliderInt("Dot degree", &dot_degree, 1, 6);
+    } else if (diffuse_lighting_model == 1) {
+      ImGui::SliderFloat("Albedo", &albedo, 0.0f, 1.0f);
+      ImGui::SliderFloat("Roughness", &roughness, 0.0f, 1.0f);
+    }
+    ImGui::Text("Specular");
+    ImGui::Checkbox("Specular on?", &specular);
+    if (specular) {
+      ImGui::SliderInt("Shininess", &shininess, 0, 64);
+      ImGui::SliderFloat("Strength", &spec_strength, 0.0f, 1.0f);
+    }
+    ImGui::Checkbox("Glitter specular on?", &glitter);
+    if (glitter) {
+      ImGui::SliderInt("Glitter strength", &glitter_strength, 1, 20);
+      ImGui::SliderFloat("Noise scale", &noise_scale, 0.01f, 0.10f);
+    }
+    ImGui::Text("Postprocessing");
+    ImGui::Checkbox("Postprocessing on?", &enable_postprocessing);
+    if (enable_postprocessing) {
+      ImGui::ColorEdit3("Tint", glm::value_ptr(tint));
+    }
+    ImGui::End();
+  }
+  ImGui::Render();
 }
 
 void renderFrame(GLFWwindow *window) {
@@ -274,70 +352,32 @@ void renderFrame(GLFWwindow *window) {
   deltaTime = currentFrame - lastFrame;
   lastFrame = currentFrame;
 
-  // imgui stuff
-  {
-    ImGui_ImplOpenGL3_NewFrame();
-    ImGui_ImplGlfw_NewFrame();
-    ImGui::NewFrame();
-    if (escapeMouse) {
-      ImGui::Begin("Shader");
-      if (ImGui::Button("Reload shader")) {
-        shader->reload();
-        screen_shader->reload();
-      }
-      // ImGui::Checkbox("Show normal map?", &show_normal_map);
-      ImGui::RadioButton("Diffuse", &show_normal_map, 0);
-      ImGui::SameLine();
-      ImGui::RadioButton("Normals", &show_normal_map, 1);
-      ImGui::SameLine();
-      ImGui::RadioButton("Normal map", &show_normal_map, 2);
-      ImGui::SameLine();
-      ImGui::RadioButton("Specular map", &show_normal_map, 3);
-      ImGui::Text("Frag");
-      ImGui::Text("Diffuse");
-      ImGui::RadioButton("Lambert", &diffuse_lighting_model, 0);
-      ImGui::SameLine();
-      ImGui::RadioButton("Oren-Nayar", &diffuse_lighting_model, 1);
-      if (diffuse_lighting_model == 0) {
-        ImGui::SliderFloat("N.y modifier", &N_y, 0.0f, 1.0f);
-        ImGui::SliderInt("Dot degree", &dot_degree, 1, 6);
-      } else if (diffuse_lighting_model == 1) {
-        ImGui::SliderFloat("Albedo", &albedo, 0.0f, 1.0f);
-        ImGui::SliderFloat("Roughness", &roughness, 0.0f, 1.0f);
-      }
-      ImGui::Text("Specular");
-      ImGui::Checkbox("Specular on?", &specular);
-      if (specular) {
-        ImGui::SliderInt("Shininess", &shininess, 0, 64);
-        ImGui::SliderFloat("Strength", &spec_strength, 0.0f, 1.0f);
-      }
-      ImGui::Checkbox("Glitter specular on?", &glitter);
-      ImGui::Text("Preprocesing");
-      ImGui::ColorEdit3("Tint", glm::value_ptr(tint));
-      ImGui::End();
-    }
-    ImGui::Render();
+  renderImGui();
+  shader->activate();
+  if (enable_postprocessing) {
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
   }
 
-  shader->activate();
-  glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-  glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+  glClearColor(0.98f, 0.84f, 0.65f, 1.0f);
   glClear(GL_COLOR_BUFFER_BIT |
           GL_DEPTH_BUFFER_BIT); // we're not using the stencil buffer now
   glEnable(GL_DEPTH_TEST);
   renderNode(rootNode);
   camera.updateCamera(deltaTime);
   // now render the texture to the screen
-  screen_shader->activate();
-  glUniform3fv(0, 1, glm::value_ptr(tint));
-  glBindFramebuffer(GL_FRAMEBUFFER, 0);
-  glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
-  glClear(GL_COLOR_BUFFER_BIT);
+  if (enable_postprocessing) {
+    screen_shader->activate();
+    glUniform3fv(0, 1, glm::value_ptr(tint));
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
 
-  glActiveTexture(GL_TEXTURE0);
-  glBindTexture(GL_TEXTURE_2D, fbo_texture);
-  glBindVertexArray(screen_quadVAO);
-  glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, fbo_texture);
+    glBindVertexArray(screen_quadVAO);
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  }
 }
 
 void mouseCallback(GLFWwindow *window, double x, double y) {

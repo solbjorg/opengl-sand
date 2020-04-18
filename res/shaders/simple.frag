@@ -2,7 +2,6 @@
 
 #define PI 3.14159265
 
-
 in layout(location = 0) vec3 normal;
 in layout(location = 1) vec2 textureCoordinates;
 in layout(location = 2) vec3 world_position;
@@ -22,10 +21,11 @@ uniform layout(location = 12) float albedo;
 // 0 = lambert, 1 = oren nayar
 uniform layout(location = 13) int diffuse_lighting_model;
 uniform layout(location = 14) float spec_strength;
+uniform layout(location = 15) vec3 light_position;
+uniform layout(location = 16) int glitter_strength;
+uniform layout(location = 17) float noise_scale;
 
 layout(binding=0) uniform sampler2D diffuseSand;
-layout(binding=1) uniform sampler2D normalShallowX;
-layout(binding=2) uniform sampler2D normalShallowZ;
 layout(binding=3) uniform sampler2D normalSteepX;
 layout(binding=4) uniform sampler2D normalSteepZ;
 
@@ -33,7 +33,6 @@ out vec4 color;
 
 // this is roughly the RGB for a warm desert sand colour pantone
 const vec3 sand_color = vec3(0.929f, 0.788f, 0.686f);
-const vec3 light_position = vec3(-1000, 100, 0);
 
 float rand(vec2 co) { return fract(sin(dot(co.xy, vec2(12.9898,78.233))) * 43758.5453); }
 float dither(vec2 uv) { return (rand(uv)*2.0-1.0) / 256.0; }
@@ -210,7 +209,7 @@ void main()
         * meaning it's fine. The fract is mostly there to make it more random, in addition to making them add
         * together more nicely later.
         */
-        vec3 fp = fract(snoise(world_position / 0.02) * 0.1 * (camera_position - light_position));
+        vec3 fp = fract(snoise(world_position / noise_scale) * (camera_position - light_position));
         /*
         * fp *= (1 - fp) basically distributes it evenly. If we remove it, the noise will only be applied to
         * one side of the screen; at least that's what experimentation told me.
@@ -222,7 +221,7 @@ void main()
         * version of Phong specular. 11 removes a lot of the noise and is nice, but 7 is a happy medium if
         * I want to show the sparkle off, in addition to feeling more stylised.
         */
-        float glitter = clamp(1 - 11 * (fp.x + fp.y + fp.z), 0, 1);
+        float glitter = clamp(1 - glitter_strength * (fp.x + fp.y + fp.z), 0, 1);
         // The spec_base actually doesn't add that much, but it's the little things
         sparkle = glitter * pow(spec_base, 1.5);
     }
