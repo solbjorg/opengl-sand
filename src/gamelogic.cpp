@@ -80,12 +80,13 @@ bool sparkle = true;
 int show_normal_map =
     0; // 0 = diffuse, 1 = normal, 2 = normal mapped, 3 = specular map
 int shininess = 32;
+float spec_strength = 0.3f;
 int dot_degree = 4;
 glm::vec3 tint = {1.0f, 0.8f, 0.8f};
 bool glitter = true;
 float albedo = 1.0f;
-float roughness = 1.0f;
-int diffuse_lighting_model = 0; // 0 = lambert, 1 = oren-nayar
+float roughness = 0.9f;
+int diffuse_lighting_model = 1; // 0 = lambert, 1 = oren-nayar
 
 Gui *gui;
 
@@ -231,6 +232,7 @@ void renderNode(SceneNode *node) {
   glUniform1f(11, roughness);
   glUniform1f(12, albedo);
   glUniform1i(13, diffuse_lighting_model);
+  glUniform1f(14, spec_strength);
 
   switch (node->nodeType) {
   case GEOMETRY:
@@ -306,7 +308,8 @@ void renderFrame(GLFWwindow *window) {
       ImGui::Text("Specular");
       ImGui::Checkbox("Specular on?", &specular);
       if (specular) {
-        ImGui::SliderInt("Shininess", &shininess, 0, 256);
+        ImGui::SliderInt("Shininess", &shininess, 0, 64);
+        ImGui::SliderFloat("Strength", &spec_strength, 0.0f, 1.0f);
       }
       ImGui::Checkbox("Glitter specular on?", &glitter);
       ImGui::Text("Preprocesing");

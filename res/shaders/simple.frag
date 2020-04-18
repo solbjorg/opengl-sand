@@ -2,6 +2,42 @@
 
 #define PI 3.14159265
 
+
+in layout(location = 0) vec3 normal;
+in layout(location = 1) vec2 textureCoordinates;
+in layout(location = 2) vec3 world_position;
+
+uniform layout(location = 2) vec3 camera_position;
+uniform layout(location = 3) mat4 model;
+uniform layout(location = 4) mat4 VP;
+uniform layout(location = 5) float N_y;
+// is specular on
+uniform layout(location = 6) bool specular;
+uniform layout(location = 7) int shininess;
+uniform layout(location = 8) int dot_degree;
+uniform layout(location = 9) int show_normal_map;
+uniform layout(location = 10) bool glitter;
+uniform layout(location = 11) float roughness;
+uniform layout(location = 12) float albedo;
+// 0 = lambert, 1 = oren nayar
+uniform layout(location = 13) int diffuse_lighting_model;
+uniform layout(location = 14) float spec_strength;
+
+layout(binding=0) uniform sampler2D diffuseSand;
+layout(binding=1) uniform sampler2D normalShallowX;
+layout(binding=2) uniform sampler2D normalShallowZ;
+layout(binding=3) uniform sampler2D normalSteepX;
+layout(binding=4) uniform sampler2D normalSteepZ;
+
+out vec4 color;
+
+// this is roughly the RGB for a warm desert sand colour pantone
+const vec3 sand_color = vec3(0.929f, 0.788f, 0.686f);
+const vec3 light_position = vec3(-1000, 100, 0);
+
+float rand(vec2 co) { return fract(sin(dot(co.xy, vec2(12.9898,78.233))) * 43758.5453); }
+float dither(vec2 uv) { return (rand(uv)*2.0-1.0) / 256.0; }
+
 //	Simplex 3D Noise
 //	by Ian McEwan, Ashima Arts
 //  https://gist.github.com/patriciogonzalezvivo/670c22f3966e662d2f83
@@ -105,60 +141,15 @@ float orenNayarDiffuse(
   return albedo * max(0.0, NdotL) * (A + B * s / t) / PI;
 }
 
-
-in layout(location = 0) vec3 normal;
-in layout(location = 1) vec2 textureCoordinates;
-in layout(location = 2) vec3 world_position;
-
-uniform layout(location = 2) vec3 camera_position;
-uniform layout(location = 3) mat4 model;
-uniform layout(location = 4) mat4 VP;
-uniform layout(location = 5) float N_y;
-// is specular on
-uniform layout(location = 6) bool specular;
-uniform layout(location = 7) int shininess;
-uniform layout(location = 8) int dot_degree;
-uniform layout(location = 9) int show_normal_map;
-uniform layout(location = 10) bool glitter;
-uniform layout(location = 11) float roughness;
-uniform layout(location = 12) float albedo;
-// 0 = lambert, 1 = oren nayar
-uniform layout(location = 13) int diffuse_lighting_model;
-
-layout(binding=0) uniform sampler2D diffuseSand;
-layout(binding=1) uniform sampler2D normalShallowX;
-layout(binding=2) uniform sampler2D normalShallowZ;
-layout(binding=3) uniform sampler2D normalSteepX;
-layout(binding=4) uniform sampler2D normalSteepZ;
-
-out vec4 color;
-
-const vec3 sand_color = vec3(0.929f, 0.788f, 0.686f);
-const vec3 light_position = vec3(0, 10000, 1000);
-const float light_intensity = 1.0f;
-
-float rand(vec2 co) { return fract(sin(dot(co.xy, vec2(12.9898,78.233))) * 43758.5453); }
-float dither(vec2 uv) { return (rand(uv)*2.0-1.0) / 256.0; }
-
-// Reoriented Normal Mapping for Unity3d
-// obviously adapted for GLSL
-// http://discourse.selfshadow.com/t/blending-in-detail/21/18
-vec3 rnmBlendUnpacked(vec3 n1, vec3 n2) {
-    n1 += vec3( 0,  0, 1);
-    n2 *= vec3(-1, -1, 1);
-    return n1*dot(n1, n2)/n1.z - n2;
-}
-
 void main()
 {
     vec3 norm = normalize(normal);
-    vec3 map_norm;
-    // it's noon ok
+
     vec3 light_direction = normalize(light_position - world_position);
     vec3 camera_direction = normalize(camera_position - world_position);
 
     vec3 diffuse_color;
-    float specular_intensity;
+    float specular_intensity = 0;
 
     // triplanar mapping; thanks to https://gamedevelopment.tutsplus.com/articles/use-tri-planar-texture-mapping-for-better-terrain--gamedev-13821
     // in addition, the blending calculation was changed according to https://medium.com/@bgolus/normal-mapping-for-a-triplanar-shader-10bf39dca05a#0c9a
@@ -184,12 +175,12 @@ void main()
     // instead, we blend the normal map with the surface normals depending on
     // y like this. This allows us to map exclusively on X and Z, "ignoring Y".
     // I also tried to blend in Y in other ways, but this ended up looking the best
-    map_norm = blending.y * norm + (1 - blending.y) * steep_map_norm;
+    vec3 map_norm = blending.y * norm + (1 - blending.y) * steep_map_norm;
 
     // diffuse
-    // this kind of weird-looking version of lambert is lifted straight from the GDC talk
-    // canonically, dot_degree should be 4 and N_y should be 0.3
     if (diffuse_lighting_model == 0) {
+      // this kind of weird-looking version of lambert is lifted straight from the GDC talk
+      // canonically, dot_degree should be 4 and N_y should be 0.3
         diffuse_color += clamp(dot_degree * dot(light_direction, map_norm * vec3(1,N_y,1)), 0.f, 1.f);
     } else if (diffuse_lighting_model == 1) {
         diffuse_color += orenNayarDiffuse(light_direction, camera_direction, map_norm, roughness, albedo);
@@ -199,13 +190,15 @@ void main()
     if (specular) {
         vec3 H = normalize(light_direction + camera_direction);
         // here's blinn-phong specular, for an ocean-y, liquid-y feeling
-        specular_intensity = clamp(pow(max(dot(map_norm, H), 0.0), shininess), 0, 1);
+        specular_intensity = pow(max(dot(norm, H), 0.0), shininess);
     }
 
     // sparkling! adapted from https://developer.amd.com/wordpress/media/2012/10/Shopf-Procedural.pdf
     float sparkle = 0;
     if (glitter) {
         // We build on good old phong specular
+        // We use surface normal rather than normal map because it doesn't particularly change the outcome,
+        // and it's easier to reason with
         float spec_base = clamp(dot(reflect(-light_direction, norm), camera_direction), 0, 1);
         /* The slides from the AMD talk don't go into too much detail, so I've worked out most of this
         * by experimentation. It did actually lead to pretty decent understanding all in all.
@@ -216,8 +209,6 @@ void main()
         * those effects pretty much disappear, and since the glitter is subtle any anomalies aren't noticeable
         * meaning it's fine. The fract is mostly there to make it more random, in addition to making them add
         * together more nicely later.
-        * Oh, also, we use the surface normal rather than the one we got from the normal map, just because it
-        * doesn't particularly matter for this and it reduces the amount of things to keep track of.
         */
         vec3 fp = fract(snoise(world_position / 0.02) * 0.1 * (camera_position - light_position));
         /*
@@ -236,8 +227,8 @@ void main()
         sparkle = glitter * pow(spec_base, 1.5);
     }
 
-    vec3 spec = specular_intensity * vec3(0.3);
-    vec3 light = (diffuse_color + spec + sparkle) * light_intensity;
+    vec3 spec = specular_intensity * vec3(spec_strength);
+    vec3 light = (diffuse_color + spec + sparkle);
     if (show_normal_map == 1)
         color = vec4(abs(norm), 1.0f);
     else if (show_normal_map == 2)
