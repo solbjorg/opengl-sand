@@ -63,10 +63,6 @@ bool mouseLeftReleased = false;
 bool mouseRightPressed = false;
 bool mouseRightReleased = false;
 
-const float debug_startTime = 0;
-double totalElapsedTime = debug_startTime;
-double gameElapsedTime = debug_startTime;
-
 unsigned int normalSteepX;
 unsigned int normalSteepZ;
 
@@ -220,6 +216,7 @@ void updateNodeTransformations(SceneNode *node,
   case GEOMETRY:
     break;
   case POINT_LIGHT: {
+    // sun parabola; this is what makes it go from dusk to noon to sunset.
     float x = t * 2.0 - 1.0;
     float zpos = x * 500;
     node->position.z = zpos;
@@ -239,6 +236,8 @@ void renderNode(SceneNode *node) {
 
   switch (node->nodeType) {
   case GEOMETRY:
+    // pass in uniforms
+    // these are admittedly not ordered well...
     glUniform3fv(2, 1, glm::value_ptr(camera.Position));
     glUniformMatrix4fv(3, 1, GL_FALSE,
                        glm::value_ptr(node->currentTransformationMatrix));
@@ -272,7 +271,6 @@ void renderNode(SceneNode *node) {
     break;
   case POINT_LIGHT:
     sun_shader->activate();
-    // glBindFramebuffer(GL_FRAMEBUFFER, fbo);
     glUniformMatrix4fv(1, 1, GL_FALSE,
                        glm::value_ptr(node->currentTransformationMatrix));
     glUniformMatrix4fv(2, 1, GL_FALSE, glm::value_ptr(VP));
