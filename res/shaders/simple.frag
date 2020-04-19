@@ -171,13 +171,13 @@ void main()
 
     float steepness = 1 - abs(norm.y);
     // we don't blend in the y term here...
-    vec3 steep_map_norm = normalize(steep_norm_x.zyx * blending.x + /* norm.xyz * blending.y + */ steep_norm_z.xyz * blending.z).xyz;
+    vec3 steep_map_norm = normalize(steep_norm_x.zyx * blending.x + norm.xyz * blending.y + steep_norm_z.xyz * blending.z).xyz;
     // instead, we blend the normal map with the surface normals depending on
     // y like this. This allows us to map exclusively on X and Z, "ignoring Y".
     // I also tried to blend in Y in other ways, but this ended up looking the best
     vec3 map_norm;
     if (use_normalmap)
-        map_norm = blending.y * norm + (1 - blending.y) * steep_map_norm;
+        map_norm = steep_map_norm;
     else
         map_norm = norm;
 
