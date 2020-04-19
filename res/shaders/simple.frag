@@ -227,10 +227,10 @@ void main()
         float spec_base = clamp(dot(reflect(-light_direction, norm), camera_direction), 0, 1);
         /* The slides from the AMD talk don't go into too much detail, so I've worked out most of this
         * by experimentation. It did actually lead to pretty decent understanding all in all.
-        * The division by 0.02 increases the noisiness; if we remove it, we start seeing patterns in the noise
+        * The division by 0.01 increases the noisiness; if we remove it, we start seeing patterns in the noise
         * which we don't want; it does make for a pretty cool line effect, just not the one we want!
         * We multiply by the view vector, instead of add like in the slides. It still leads to some pretty
-        * strange effects with the glitter at times, which we might not get by adding it - but at ground level
+        * strange effects with the glitter at times, which we might not get by adding it - but from a distance
         * those effects pretty much disappear, and since the glitter is subtle any anomalies aren't noticeable
         * meaning it's fine. The fract is mostly there to make it more random, in addition to making them add
         * together more nicely later.
@@ -245,7 +245,8 @@ void main()
         * So, not entirely sure, but the multiplied 7 determines the threshold by which something glitters.
         * Setting it to 3 gets you really glittery, any lower and it just starts looking like a very noisy
         * version of Phong specular. 11 removes a lot of the noise and is nice, but 7 is a happy medium if
-        * I want to show the sparkle off, in addition to feeling more stylised.
+        * I want to show the sparkle off, in addition to feeling more stylised. Anything higher than 8 doesn't
+        * really show up on video, though... :(
         */
         float glitter = clamp(1 - glitter_strength * (fp.x + fp.y + fp.z), 0, 1);
         // The spec_base actually doesn't add that much, but it's the little things
@@ -254,12 +255,17 @@ void main()
 
     vec3 spec = specular_intensity * vec3(spec_strength);
     vec3 light = (diffuse_color + spec + sparkle);
+    // Change what texture is mapped on the mesh based on show_normal_map
+    // Show surface normals
     if (show_normal_map == 1)
         color = vec4(abs(norm), 1.0f);
+    // Show normal map
     else if (show_normal_map == 2)
         color = vec4(abs(map_norm), 1.0f);
+    // Show glitter specular map
     else if (show_normal_map == 3)
         color = vec4(vec3(abs(sparkle)), 1.0f);
+    // Show fully rendered scene
     else
         color = vec4(tex.xyz * light, 1.0f);
 }
