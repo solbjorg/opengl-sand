@@ -9,6 +9,8 @@ endeavour to create sand similar to the game Journey in OpenGL, inspired by
 On Linux:
 
 ```
+git clone --recursive git@github.com:solbjorg/opengl-sand.git
+mkdir build
 cd build
 cmake ..
 make
