@@ -24,6 +24,7 @@ uniform layout(location = 14) float spec_strength;
 uniform layout(location = 15) vec3 light_position;
 uniform layout(location = 16) int glitter_strength;
 uniform layout(location = 17) float noise_scale;
+uniform layout(location = 18) bool use_normalmap;
 
 layout(binding=0) uniform sampler2D diffuseSand;
 layout(binding=3) uniform sampler2D normalSteepX;
@@ -174,7 +175,11 @@ void main()
     // instead, we blend the normal map with the surface normals depending on
     // y like this. This allows us to map exclusively on X and Z, "ignoring Y".
     // I also tried to blend in Y in other ways, but this ended up looking the best
-    vec3 map_norm = blending.y * norm + (1 - blending.y) * steep_map_norm;
+    vec3 map_norm;
+    if (use_normalmap)
+        map_norm = blending.y * norm + (1 - blending.y) * steep_map_norm;
+    else
+        map_norm = norm;
 
     // diffuse
     if (diffuse_lighting_model == 0) {
@@ -189,7 +194,7 @@ void main()
     if (specular) {
         vec3 H = normalize(light_direction + camera_direction);
         // here's blinn-phong specular, for an ocean-y, liquid-y feeling
-        specular_intensity = pow(max(dot(norm, H), 0.0), shininess);
+        specular_intensity = pow(max(dot(map_norm, H), 0.0), shininess);
     }
 
     // sparkling! adapted from https://developer.amd.com/wordpress/media/2012/10/Shopf-Procedural.pdf

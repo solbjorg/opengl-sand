@@ -1,5 +1,3 @@
-// TODO: I made a mess of submoduling imgui...fix tomorrow.
-
 #include "gamelogic.h"
 #include "mesh.hpp"
 #include "sceneGraph.hpp"
@@ -89,6 +87,7 @@ float albedo = 1.0f;
 float roughness = 0.9f;
 int diffuse_lighting_model = 1; // 0 = lambert, 1 = oren-nayar
 float t = 0.4f;                 // represents time between day and night
+bool use_normalmap = true;
 
 // postprocessing
 bool enable_postprocessing = true;
@@ -257,6 +256,7 @@ void renderNode(SceneNode *node) {
     glUniform3fv(15, 1, glm::value_ptr(sunNode->position));
     glUniform1i(16, glitter_strength);
     glUniform1f(17, noise_scale);
+    glUniform1i(18, use_normalmap);
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, node->textureID);
@@ -302,7 +302,6 @@ void renderImGui() {
       shader->reload();
       screen_shader->reload();
     }
-    // ImGui::Checkbox("Show normal map?", &show_normal_map);
     ImGui::RadioButton("Diffuse", &show_normal_map, 0);
     ImGui::SameLine();
     ImGui::RadioButton("Normals", &show_normal_map, 1);
@@ -311,6 +310,7 @@ void renderImGui() {
     ImGui::SameLine();
     ImGui::RadioButton("Specular map", &show_normal_map, 3);
     ImGui::Text("Frag");
+    ImGui::Checkbox("Use normal maps?", &use_normalmap);
     ImGui::Text("Diffuse");
     ImGui::RadioButton("Lambert", &diffuse_lighting_model, 0);
     ImGui::SameLine();
